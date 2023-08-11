@@ -29,7 +29,7 @@ from nii2dcm.modules import (
     common_instance_reference,
 )
 
-nii2dcm_temp_filename = 'nii2dcm_tempfile.dcm'
+nii2dcm_temp_filename = "nii2dcm_tempfile.dcm"
 
 
 class Dicom:
@@ -44,22 +44,54 @@ class Dicom:
     """
 
     def __init__(self, filename=nii2dcm_temp_filename):
-
         self.filename = filename
 
-        self.dcm_dictionary_update()
+        # self.dcm_dictionary_update()
 
         # Instantiates minimal Pydicom FileMetaDataset object
         self.file_meta = FileMetaDataset()
-        self.file_meta.TransferSyntaxUID = '1.2.840.10008.1.2.1'  # Explicit VR Little Endian
-        self.file_meta.ImplementationVersionName = 'nii2dcm_DICOM'
-
+        self.file_meta.TransferSyntaxUID = (
+            "1.2.840.10008.1.2.1"  # Explicit VR Little Endian
+        )
+        self.file_meta.ImplementationVersionName = "Qbio Gemini"
         # Instantiates minimal DataSet object
-        self.ds = FileDataset(filename, {}, file_meta=self.file_meta, preamble=b"\0" * 128)
+        self.ds = FileDataset(
+            filename, {}, file_meta=self.file_meta, preamble=b"\0" * 128
+        )
         self.ds.is_implicit_VR = False
         self.ds.is_little_endian = True
-        self.ds.ImageType = ['DERIVED', 'SECONDARY']
+        self.ds.ImageType = ["DERIVED", "SECONDARY"]
 
+        # hack this in
+        self.ds.ScanningSequence = "SE"
+        self.ds.SequenceVariant = "SK"
+        self.ds.MrAcquisitionType = "2D"
+        self.ds.RepetitionTime = 450
+        self.ds.EchoTime = 15
+        self.ds.NumberOfAverages = 3
+        self.ds.ImagedNucleus = "1H"
+        self.ds.ImagingFrequency = 21.3
+        self.ds.MagneticFieldStrength = 0.5
+        self.ds.SpacingBetweenSlices = 0
+        self.ds.NumberOfPhaseEncodingSteps = 256
+        self.ds.EchoTrainLength = 1
+        self.ds.PercentSampling = 100
+        self.ds.PercentPhaseFieldOfView = 100
+        self.ds.PixelBandwidth = 200
+        self.ds.DeviceSerialNumber = "000001"
+        self.ds.SoftwareVersions = "0.121"
+        self.ds.ProtocolName = "knee_test_first"
+        self.ds.PatientPosition = "FFS"
+        self.ds.InplanePhaseEncodingDirection = "COL"
+        self.ds.FlipAngle = 90
+        self.ds.VariableFlipAngleFlag = "N"
+        self.ds.AcquisitionMatrix = [256, 0, 0, 256]
+        self.ds.ReconstructionDiameter = 256
+        self.ds.ReceiveCoilName = "Knee_5_proto"
+        self.ds.TransmitCoilName = "WBPlanar"
+        self.ds.BitsAllocated = 16
+        self.ds.BitsStored = 12
+        self.ds.HighBit = 11
         """
         Create Composite IOD by adding Modules to Dicom object
         """
@@ -91,8 +123,8 @@ class Dicom:
         """
         # TODO shift to utils.py and propagate to Modules, or, create method within this Dicom class
         dt = datetime.datetime.now()
-        dateStr = dt.strftime('%Y%m%d')
-        timeStr = dt.strftime('%H%M%S.%f')  # long format with micro seconds
+        dateStr = dt.strftime("%Y%m%d")
+        timeStr = dt.strftime("%H%M%S.%f")  # long format with micro seconds
 
         self.ds.ContentDate = dateStr
         self.ds.ContentTime = timeStr
@@ -115,19 +147,19 @@ class Dicom:
 
         # ImageOrientationPatient
         # hard-coded, probably better way to define based on NIfTI values
-        self.ds.ImageOrientationPatient = ['1', '0', '0', '0', '1', '0']
+        self.ds.ImageOrientationPatient = ["1", "0", "0", "0", "1", "0"]
 
         # Display Attributes
         # NB: RescaleIntercept and RescaleSlope do NOT appear to be in MR Image Module, but are in CT Image, Secondary
         # Capture and Enhanced MR Modules, hence for MRI must define in this class or within DicomMRI class
-        self.ds.RescaleIntercept = ''
-        self.ds.RescaleSlope = ''
-        self.ds.WindowCenter = ''
-        self.ds.WindowWidth = ''
+        self.ds.RescaleIntercept = ""
+        self.ds.RescaleSlope = ""
+        self.ds.WindowCenter = ""
+        self.ds.WindowWidth = ""
 
         # per Instance Attributes
         # initialised with hard-coded value below, but overwritten with transfer_nii_hdr_instance_tags()
-        self.ds.ImagePositionPatient = ['0', '0', '0']
+        self.ds.ImagePositionPatient = ["0", "0", "0"]
 
         self.init_study_tags()
         self.init_series_tags()
@@ -170,8 +202,10 @@ class Dicom:
 
         self.ds.SeriesInstanceUID = pyd.uid.generate_uid(None)
         self.ds.FrameOfReferenceUID = pyd.uid.generate_uid(None)
-        self.ds.SeriesNumber = str(randint(1000, 9999))  # 4 digit number to avoid conflict
-        self.ds.AcquisitionNumber = ''  # Innolitics says this is in General Image Module, but NEMA says it is not...
+        self.ds.SeriesNumber = str(
+            randint(1000, 9999)
+        )  # 4 digit number to avoid conflict
+        self.ds.AcquisitionNumber = ""  # Innolitics says this is in General Image Module, but NEMA says it is not...
 
 
 class DicomMRI(Dicom):
@@ -185,17 +219,46 @@ class DicomMRI(Dicom):
         """
         Set DICOM attributes which are located outside of the MR Image Module to MR-specific values 
         """
-        self.ds.Modality = 'MR'
+        self.ds.Modality = "MR"
 
         # MR Image Storage SOP Class
         # UID = 1.2.840.10008.5.1.4.1.1.4
         # https://dicom.nema.org/dicom/2013/output/chtml/part04/sect_I.4.html
-        self.file_meta.MediaStorageSOPClassUID = '1.2.840.10008.5.1.4.1.1.4'
-        self.ds.SOPClassUID = '1.2.840.10008.5.1.4.1.1.4'
+        self.file_meta.MediaStorageSOPClassUID = "1.2.840.10008.5.1.4.1.1.4"
+        self.ds.SOPClassUID = "1.2.840.10008.5.1.4.1.1.4"
 
         """
         Add MR Image Module to Dicom object
         """
         mr_image.add_module(self)
 
-
+        # hack this in
+        self.ds.ScanningSequence = "SE"
+        self.ds.SequenceVariant = "SK"
+        self.ds.MrAcquisitionType = "2D"
+        self.ds.RepetitionTime = 450
+        self.ds.EchoTime = 15
+        self.ds.NumberOfAverages = 3
+        self.ds.ImagedNucleus = "1H"
+        self.ds.ImagingFrequency = 21.3
+        self.ds.MagneticFieldStrength = 0.5
+        self.ds.SpacingBetweenSlices = 0
+        self.ds.NumberOfPhaseEncodingSteps = 256
+        self.ds.EchoTrainLength = 1
+        self.ds.PercentSampling = 100
+        self.ds.PercentPhaseFieldOfView = 100
+        self.ds.PixelBandwidth = 200
+        self.ds.DeviceSerialNumber = "000001"
+        self.ds.SoftwareVersions = "0.121"
+        self.ds.ProtocolName = "knee_test_first"
+        self.ds.PatientPosition = "FFS"
+        self.ds.InplanePhaseEncodingDirection = "COL"
+        self.ds.FlipAngle = 90
+        self.ds.VariableFlipAngleFlag = "N"
+        self.ds.AcquisitionMatrix = [256, 0, 0, 256]
+        self.ds.ReconstructionDiameter = 256
+        self.ds.ReceiveCoilName = "Knee_5_proto"
+        self.ds.TransmitCoilName = "WBPlanar"
+        self.ds.BitsAllocated = 16
+        self.ds.BitsStored = 12
+        self.ds.HighBit = 11
